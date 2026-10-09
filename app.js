@@ -1,12 +1,3 @@
-const surveys = [
-  { id: "325/2", village: "Haradanahalli", extent: "1 acre 20 guntas", acres: 1.5, owner: "RTC not verified today" },
-  { id: "326/4", village: "Haradanahalli", extent: "RTC pending", acres: null, owner: "RTC pending" },
-  { id: "328/1", village: "Haradanahalli", extent: "1 acre 2 guntas", acres: 1.05, owner: "RTC not verified today" },
-  { id: "598/10", village: "Haradanahalli", extent: "RTC pending", acres: null, owner: "RTC pending" },
-  { id: "599/3", village: "Haradanahalli", extent: "RTC pending", acres: null, owner: "RTC pending" },
-  { id: "599/4A", village: "Haradanahalli", extent: "RTC pending", acres: null, owner: "RTC pending" },
-];
-
 const map = L.map("map", { zoomControl: true }).setView([11.9237, 76.9398], 15);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 21,
@@ -14,21 +5,28 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 
 const state = {
-  selectedSurvey: surveys[0].id,
+  selectedSurvey: "New official boundary",
   authMode: "register",
   user: loadSession(),
   watchId: null,
   currentPosition: null,
   marker: null,
   boundaryLayer: null,
+  trackLayer: L.layerGroup().addTo(map),
   pointLayer: L.layerGroup().addTo(map),
   boundaries: loadBoundaries(),
+  liveTrack: [],
 };
 
 const els = {
   gpsStatus: document.querySelector("#gpsStatus"),
-  surveySelect: document.querySelector("#surveySelect"),
+  districtInput: document.querySelector("#districtInput"),
+  talukInput: document.querySelector("#talukInput"),
+  villageInput: document.querySelector("#villageInput"),
+  surveyInput: document.querySelector("#surveyInput"),
+  hissaInput: document.querySelector("#hissaInput"),
   surveyMeta: document.querySelector("#surveyMeta"),
+  officialStatus: document.querySelector("#officialStatus"),
   startGpsBtn: document.querySelector("#startGpsBtn"),
   addPointBtn: document.querySelector("#addPointBtn"),
   finishBoundaryBtn: document.querySelector("#finishBoundaryBtn"),
@@ -36,6 +34,7 @@ const els = {
   pointCount: document.querySelector("#pointCount"),
   areaValue: document.querySelector("#areaValue"),
   accuracyValue: document.querySelector("#accuracyValue"),
+  boundaryDistanceValue: document.querySelector("#boundaryDistanceValue"),
   geojsonInput: document.querySelector("#geojsonInput"),
   importGeojsonBtn: document.querySelector("#importGeojsonBtn"),
   recordsList: document.querySelector("#recordsList"),
@@ -57,15 +56,15 @@ const els = {
 init();
 
 function init() {
-  for (const survey of surveys) {
-    const option = document.createElement("option");
-    option.value = survey.id;
-    option.textContent = `Survey ${survey.id}`;
-    els.surveySelect.append(option);
-  }
-
-  els.surveySelect.addEventListener("change", () => {
-    state.selectedSurvey = els.surveySelect.value;
+  [els.districtInput, els.talukInput, els.villageInput, els.surveyInput, els.hissaInput].forEach((input) => {
+    input.addEventListener("input", () => {
+      state.selectedSurvey = getSelectedSurveyId();
+      renderBoundary();
+    });
+  });
+  state.selectedSurvey = getSelectedSurveyId();
+  els.surveyInput.addEventListener("change", () => {
+    state.selectedSurvey = getSelectedSurveyId();
     renderBoundary();
   });
   els.startGpsBtn.addEventListener("click", startGps);
@@ -111,8 +110,7 @@ async function handleAuthSubmit(event) {
     saveUsers(users);
     saveSession(email);
     state.user = { email };
-    showAuthMessage("Account created. Opening your farm dashboard...");
-    setTimeout(renderAuthState, 300);
+    openDashboard("Account created. Opening your farm dashboard...");
     return;
   }
 
@@ -130,8 +128,13 @@ async function handleAuthSubmit(event) {
 
   saveSession(email);
   state.user = { email };
-  showAuthMessage("Login successful. Opening your farm dashboard...");
-  setTimeout(renderAuthState, 300);
+  openDashboard("Login successful. Opening your farm dashboard...");
+}
+
+function openDashboard(message) {
+  showAuthMessage(message);
+  renderAuthState();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function setAuthMode(mode) {
@@ -222,6 +225,8 @@ function startGps() {
 
       els.addPointBtn.disabled = false;
       els.accuracyValue.textContent = `${Math.round(accuracy)} m`;
+      updateLiveTrack(latLng);
+      updateBoundaryPosition(latLng);
       setGpsStatus("GPS live");
     },
     (error) => {
@@ -260,7 +265,7 @@ function importGeojson() {
     const parsed = JSON.parse(els.geojsonInput.value);
     const points = polygonToLatLngs(parsed);
     if (points.length < 3) throw new Error("Polygon needs at least 3 points.");
-    state.boundaries[state.selectedSurvey] = { points, closed: true };
+    state.boundaries[state.selectedSurvey] = { points, closed: true, official: true, source: "Official/authorized GeoJSON import" };
     saveBoundaries();
     renderBoundary();
   } catch (error) {
@@ -269,10 +274,13 @@ function importGeojson() {
 }
 
 function renderBoundary() {
-  const survey = surveys.find((item) => item.id === state.selectedSurvey);
+  const survey = getSelectedSurvey();
   const boundary = getSelectedBoundary();
 
-  els.surveyMeta.textContent = `${survey.village}, Chamarajanagar. Extent: ${survey.extent}. Owner: ${survey.owner}.`;
+  els.surveyMeta.textContent = `Enter the exact village and survey number. Official boundary must come from Dishaank/Bhoomi/K-GIS or an authorized file; the app will not create fake government lines.`;
+  els.officialStatus.textContent = boundary.official
+    ? `${boundary.source}. Boundary loaded for ${survey.id}. Start live GPS to compare your location.`
+    : "No official boundary loaded yet. Import official GeoJSON/KML or connect the authorized Karnataka API.";
   els.pointCount.textContent = String(boundary.points.length);
   els.finishBoundaryBtn.disabled = boundary.points.length < 3;
 
@@ -303,6 +311,7 @@ function renderBoundary() {
   els.areaValue.textContent = boundary.closed && boundary.points.length >= 3
     ? formatArea(calculateAreaSqMeters(boundary.points))
     : "Not closed";
+  updateBoundaryPosition(getCurrentLatLng());
   renderRecords();
   renderReport();
 }
@@ -312,6 +321,28 @@ function getSelectedBoundary() {
     state.boundaries[state.selectedSurvey] = { points: [], closed: false };
   }
   return state.boundaries[state.selectedSurvey];
+}
+
+function getSelectedSurveyId() {
+  const parts = [
+    els.districtInput.value.trim(),
+    els.talukInput.value.trim(),
+    els.villageInput.value.trim(),
+    els.surveyInput.value.trim(),
+    els.hissaInput.value.trim(),
+  ].filter(Boolean);
+  return parts.length ? parts.join(" / ") : "New official boundary";
+}
+
+function getSelectedSurvey() {
+  return {
+    id: state.selectedSurvey,
+    district: els.districtInput.value.trim() || "Karnataka",
+    taluk: els.talukInput.value.trim() || "Taluk not entered",
+    village: els.villageInput.value.trim() || "Village not entered",
+    extent: "Official extent not loaded",
+    owner: "Official RTC not loaded",
+  };
 }
 
 function loadBoundaries() {
@@ -328,6 +359,72 @@ function saveBoundaries() {
 
 function setGpsStatus(text) {
   els.gpsStatus.textContent = text;
+}
+
+function getCurrentLatLng() {
+  if (!state.currentPosition) return null;
+  const { latitude, longitude } = state.currentPosition.coords;
+  return [latitude, longitude];
+}
+
+function updateLiveTrack(latLng) {
+  state.liveTrack.push(latLng);
+  if (state.liveTrack.length > 500) state.liveTrack.shift();
+  state.trackLayer.clearLayers();
+  if (state.liveTrack.length >= 2) {
+    L.polyline(state.liveTrack, { color: "#2563eb", weight: 3, opacity: 0.8 }).addTo(state.trackLayer);
+  }
+}
+
+function updateBoundaryPosition(latLng) {
+  const boundary = getSelectedBoundary();
+  if (!latLng || !boundary.closed || boundary.points.length < 3) {
+    els.boundaryDistanceValue.textContent = "No boundary";
+    return;
+  }
+
+  const inside = isPointInsidePolygon(latLng, boundary.points);
+  const distance = nearestBoundaryDistanceMeters(latLng, boundary.points);
+  els.boundaryDistanceValue.textContent = inside
+    ? `Inside · ${Math.round(distance)} m from line`
+    : `Outside · ${Math.round(distance)} m from line`;
+}
+
+function isPointInsidePolygon(point, polygon) {
+  const [lat, lng] = point;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+    const [latI, lngI] = polygon[i];
+    const [latJ, lngJ] = polygon[j];
+    const intersects = ((lngI > lng) !== (lngJ > lng)) &&
+      (lat < ((latJ - latI) * (lng - lngI)) / (lngJ - lngI) + latI);
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function nearestBoundaryDistanceMeters(point, polygon) {
+  let nearest = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < polygon.length; i += 1) {
+    const start = polygon[i];
+    const end = polygon[(i + 1) % polygon.length];
+    nearest = Math.min(nearest, distanceToSegmentMeters(point, start, end));
+  }
+  return nearest;
+}
+
+function distanceToSegmentMeters(point, start, end) {
+  const latScale = 111320;
+  const lngScale = 111320 * Math.cos(toRadians(point[0]));
+  const p = { x: point[1] * lngScale, y: point[0] * latScale };
+  const a = { x: start[1] * lngScale, y: start[0] * latScale };
+  const b = { x: end[1] * lngScale, y: end[0] * latScale };
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lengthSq = dx * dx + dy * dy;
+  const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq));
+  const projection = { x: a.x + t * dx, y: a.y + t * dy };
+  return Math.hypot(p.x - projection.x, p.y - projection.y);
 }
 
 function polygonToLatLngs(geojson) {
@@ -381,7 +478,17 @@ function setupTabs() {
 
 function renderRecords() {
   els.recordsList.innerHTML = "";
-  for (const survey of surveys) {
+  const surveyIds = Object.keys(state.boundaries);
+  if (!surveyIds.length) {
+    els.recordsList.innerHTML = '<p class="muted">No official boundaries saved yet. Import an authorized boundary file first.</p>';
+    return;
+  }
+  for (const surveyId of surveyIds) {
+    const survey = {
+      id: surveyId,
+      village: "Official/imported boundary",
+      extent: "Stored locally",
+    };
     const boundary = state.boundaries[survey.id] || { points: [], closed: false };
     const row = document.createElement("article");
     row.className = "record-row";
@@ -392,7 +499,7 @@ function renderRecords() {
       </div>
       <div>
         <strong>${boundary.points.length} points</strong>
-        <span>${boundary.closed ? "Boundary closed" : "Open capture"}</span>
+        <span>${boundary.official ? "Official/imported boundary" : "Walked GPS capture"}</span>
       </div>
     `;
     els.recordsList.append(row);
@@ -400,7 +507,7 @@ function renderRecords() {
 }
 
 function renderReport() {
-  const survey = surveys.find((item) => item.id === state.selectedSurvey);
+  const survey = getSelectedSurvey();
   const boundary = getSelectedBoundary();
   const area = boundary.closed && boundary.points.length >= 3
     ? formatArea(calculateAreaSqMeters(boundary.points))
@@ -409,12 +516,15 @@ function renderReport() {
   els.reportOutput.textContent = [
     "Farm Boundary Field Report",
     `Survey number: ${survey.id}`,
-    `Village: ${survey.village}, Chamarajanagar`,
+    `District: ${survey.district}`,
+    `Taluk: ${survey.taluk}`,
+    `Village: ${survey.village}`,
     `Recorded extent: ${survey.extent}`,
-    `Captured points: ${boundary.points.length}`,
-    `Estimated area: ${area}`,
+    `Official boundary points: ${boundary.points.length}`,
+    `Official/imported area: ${area}`,
     `GPS accuracy: ${els.accuracyValue.textContent}`,
-    "Note: Phone GPS is for field guidance only. Use official survey records for legal confirmation.",
+    `Position check: ${els.boundaryDistanceValue.textContent}`,
+    "Note: This app does not fabricate government boundaries. Legal confirmation must come from official Karnataka land records or a licensed surveyor.",
   ].join("\n");
 }
 
