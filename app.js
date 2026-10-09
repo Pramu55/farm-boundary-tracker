@@ -10,12 +10,15 @@ const state = {
   user: loadSession(),
   watchId: null,
   currentPosition: null,
+  smoothedPosition: null,
   marker: null,
   boundaryLayer: null,
   trackLayer: L.layerGroup().addTo(map),
   pointLayer: L.layerGroup().addTo(map),
   boundaries: loadBoundaries(),
   liveTrack: [],
+  minUsableAccuracyMeters: 10,
+  preferredAccuracyMeters: 5,
 };
 
 const els = {
@@ -35,6 +38,10 @@ const els = {
   areaValue: document.querySelector("#areaValue"),
   accuracyValue: document.querySelector("#accuracyValue"),
   boundaryDistanceValue: document.querySelector("#boundaryDistanceValue"),
+  qualityFill: document.querySelector("#qualityFill"),
+  qualityText: document.querySelector("#qualityText"),
+  mapProviderLabel: document.querySelector("#mapProviderLabel"),
+  mapplsStatus: document.querySelector("#mapplsStatus"),
   geojsonInput: document.querySelector("#geojsonInput"),
   importGeojsonBtn: document.querySelector("#importGeojsonBtn"),
   recordsList: document.querySelector("#recordsList"),
@@ -214,7 +221,7 @@ function startGps() {
     (position) => {
       state.currentPosition = position;
       const { latitude, longitude, accuracy } = position.coords;
-      const latLng = [latitude, longitude];
+      const latLng = smoothLatLng([latitude, longitude], accuracy);
 
       if (!state.marker) {
         state.marker = L.marker(latLng).addTo(map).bindPopup("Your live location");
@@ -223,8 +230,9 @@ function startGps() {
         state.marker.setLatLng(latLng);
       }
 
-      els.addPointBtn.disabled = false;
+      els.addPointBtn.disabled = accuracy > state.minUsableAccuracyMeters;
       els.accuracyValue.textContent = `${Math.round(accuracy)} m`;
+      updateGpsQuality(accuracy);
       updateLiveTrack(latLng);
       updateBoundaryPosition(latLng);
       setGpsStatus("GPS live");
@@ -238,7 +246,12 @@ function startGps() {
 
 function addCurrentPoint() {
   if (!state.currentPosition) return;
-  const { latitude, longitude } = state.currentPosition.coords;
+  const { accuracy } = state.currentPosition.coords;
+  if (accuracy > state.minUsableAccuracyMeters) {
+    alert(`GPS accuracy is ${Math.round(accuracy)} m. Move to open sky and wait until it is under ${state.minUsableAccuracyMeters} m before saving a point.`);
+    return;
+  }
+  const [latitude, longitude] = getCurrentLatLng();
   const boundary = getSelectedBoundary();
   boundary.points.push([latitude, longitude]);
   boundary.closed = false;
@@ -362,9 +375,40 @@ function setGpsStatus(text) {
 }
 
 function getCurrentLatLng() {
-  if (!state.currentPosition) return null;
-  const { latitude, longitude } = state.currentPosition.coords;
-  return [latitude, longitude];
+  return state.smoothedPosition;
+}
+
+function smoothLatLng(latLng, accuracy) {
+  if (!state.smoothedPosition || accuracy <= state.preferredAccuracyMeters) {
+    state.smoothedPosition = latLng;
+    return latLng;
+  }
+
+  const weight = accuracy <= state.minUsableAccuracyMeters ? 0.35 : 0.15;
+  state.smoothedPosition = [
+    state.smoothedPosition[0] * (1 - weight) + latLng[0] * weight,
+    state.smoothedPosition[1] * (1 - weight) + latLng[1] * weight,
+  ];
+  return state.smoothedPosition;
+}
+
+function updateGpsQuality(accuracy) {
+  let score = 25;
+  let label = "Weak GPS. Move outdoors and wait.";
+  if (accuracy <= state.preferredAccuracyMeters) {
+    score = 100;
+    label = "Excellent GPS. Good for field guidance.";
+  } else if (accuracy <= state.minUsableAccuracyMeters) {
+    score = 70;
+    label = "Usable GPS. You can save points, but verify carefully.";
+  } else if (accuracy <= 25) {
+    score = 45;
+    label = "Low accuracy. Point saving is blocked for safer measurement.";
+  }
+
+  els.qualityFill.style.width = `${score}%`;
+  els.qualityFill.dataset.level = score >= 70 ? "good" : score >= 45 ? "warn" : "bad";
+  els.qualityText.textContent = `${label} Current accuracy: ${Math.round(accuracy)} m.`;
 }
 
 function updateLiveTrack(latLng) {
