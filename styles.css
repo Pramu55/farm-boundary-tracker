@@ -201,6 +201,32 @@ details,
   text-decoration: none;
 }
 
+.quality-meter {
+  width: 100%;
+  height: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #edf2eb;
+}
+
+.quality-meter span {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: #9b1c1c;
+  transition: width 180ms ease, background 180ms ease;
+}
+
+.quality-meter span[data-level="warn"] {
+  background: #b7791f;
+}
+
+.quality-meter span[data-level="good"] {
+  background: var(--primary);
+}
+
 label,
 summary {
   display: block;
