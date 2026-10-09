@@ -1,0 +1,16 @@
+{
+  "name": "Farm Boundary Tracker",
+  "short_name": "Farm Tracker",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f7f2",
+  "theme_color": "#145230",
+  "description": "GPS-based farm boundary capture and field guidance web app.",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='42' fill='%23145230'/%3E%3Cpath d='M42 126 87 51l63 33-27 63-81-21Z' fill='%23d7f0cf' stroke='%23fff' stroke-width='10' stroke-linejoin='round'/%3E%3Ccircle cx='87' cy='51' r='12' fill='%23fff'/%3E%3Ccircle cx='150' cy='84' r='12' fill='%23fff'/%3E%3Ccircle cx='123' cy='147' r='12' fill='%23fff'/%3E%3Ccircle cx='42' cy='126' r='12' fill='%23fff'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
