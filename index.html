@@ -84,6 +84,14 @@
           </div>
         </div>
 
+        <div class="official-card">
+          <strong>Advanced GPS Quality</strong>
+          <div class="quality-meter" aria-label="GPS accuracy quality">
+            <span id="qualityFill"></span>
+          </div>
+          <p id="qualityText" class="muted">Start live GPS outdoors. The app will warn you if accuracy is weak.</p>
+        </div>
+
         <div class="controls">
           <button id="startGpsBtn">Start Live GPS</button>
           <button id="addPointBtn" disabled>Add Current Point</button>
@@ -137,11 +145,15 @@
           </div>
           <div class="setting-row">
             <span>Map</span>
-            <strong>OpenStreetMap</strong>
+            <strong id="mapProviderLabel">OpenStreetMap now / Mappls-ready</strong>
           </div>
           <div class="setting-row">
             <span>GPS mode</span>
-            <strong>High accuracy</strong>
+            <strong>High accuracy with quality filter</strong>
+          </div>
+          <div class="setting-row">
+            <span>Mappls</span>
+            <strong id="mapplsStatus">API key needed</strong>
           </div>
         </section>
 
