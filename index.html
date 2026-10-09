@@ -61,9 +61,27 @@
         </div>
 
         <div class="survey-card">
-          <label for="surveySelect">Survey number</label>
-          <select id="surveySelect"></select>
+          <label for="districtInput">Official land details</label>
+          <div class="land-grid">
+            <input id="districtInput" type="text" value="Chamarajanagar" placeholder="District" />
+            <input id="talukInput" type="text" value="Chamarajanagar" placeholder="Taluk" />
+            <input id="villageInput" type="text" placeholder="Village" />
+            <input id="surveyInput" type="text" placeholder="Survey no, example 325/2" />
+            <input id="hissaInput" type="text" placeholder="Hissa no, if any" />
+          </div>
           <p id="surveyMeta" class="muted"></p>
+        </div>
+
+        <div class="official-card">
+          <div>
+            <strong>Official Boundary Source</strong>
+            <p id="officialStatus" class="muted">No official boundary loaded yet. Use Karnataka Dishaank, Bhoomi/K-GIS API, or import an official GeoJSON/KML file.</p>
+          </div>
+          <div class="source-actions">
+            <a href="https://play.google.com/store/apps/details?id=com.ksrsac.sslr" target="_blank" rel="noopener">Open Dishaank</a>
+            <a href="https://landrecords.karnataka.gov.in/service3/" target="_blank" rel="noopener">Open Bhoomi Maps</a>
+            <a href="https://kgis.ksrsac.in/kgis/webapi.aspx" target="_blank" rel="noopener">K-GIS APIs</a>
+          </div>
         </div>
 
         <div class="controls">
@@ -82,12 +100,16 @@
 
         <div class="stats">
           <div>
-            <span>Captured points</span>
+            <span>Walked GPS points</span>
             <strong id="pointCount">0</strong>
           </div>
           <div>
-            <span>Area</span>
+            <span>Official area</span>
             <strong id="areaValue">Not closed</strong>
+          </div>
+          <div>
+            <span>Position check</span>
+            <strong id="boundaryDistanceValue">No boundary</strong>
           </div>
           <div>
             <span>GPS accuracy</span>
@@ -126,8 +148,8 @@
         <details id="captureView" class="module-view">
           <summary>Import official boundary GeoJSON</summary>
           <p class="muted">
-            Paste a Polygon or MultiPolygon GeoJSON from an official/source map export. This
-            app will draw it and calculate approximate area.
+            Paste a Polygon or MultiPolygon GeoJSON copied/exported from an official or authorized
+            Karnataka map source. The app will draw that boundary and compare your live GPS location.
           </p>
           <textarea id="geojsonInput" rows="7" spellcheck="false" placeholder='{"type":"Polygon","coordinates":[...]}'></textarea>
           <button id="importGeojsonBtn" class="secondary">Import GeoJSON</button>
