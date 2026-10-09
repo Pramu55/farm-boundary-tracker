@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#145230" />
+    <meta name="description" content="Installable farm boundary tracker with GPS capture, survey records, reports, and map-based field guidance." />
+    <title>Farm Boundary Tracker</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"%3E%3Crect width="64" height="64" rx="14" fill="%23145230"/%3E%3Cpath d="M14 42 29 17l21 11-9 21-27-7Z" fill="%23d7f0cf" stroke="%23fff" stroke-width="3" stroke-linejoin="round"/%3E%3Ccircle cx="29" cy="17" r="4" fill="%23ffffff"/%3E%3Ccircle cx="50" cy="28" r="4" fill="%23ffffff"/%3E%3Ccircle cx="41" cy="49" r="4" fill="%23ffffff"/%3E%3Ccircle cx="14" cy="42" r="4" fill="%23ffffff"/%3E%3C/svg%3E' />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <section id="authScreen" class="auth-screen">
+      <div class="auth-card">
+        <p class="eyebrow">Farm Boundary Tracker</p>
+        <h1>Create your app account</h1>
+        <p class="muted">
+          Register with any email and password for this web app. This free version keeps the
+          account on this browser for testing.
+        </p>
+
+        <div class="auth-tabs" aria-label="Account mode">
+          <button id="showRegisterBtn" class="tab is-active" type="button">Register</button>
+          <button id="showLoginBtn" class="tab" type="button">Login</button>
+        </div>
+
+        <form id="authForm" class="auth-form">
+          <label for="authEmail">Email</label>
+          <input id="authEmail" type="email" autocomplete="email" placeholder="farmer@example.com" required />
+
+          <label for="authPassword">Password</label>
+          <input id="authPassword" type="password" autocomplete="current-password" minlength="6" placeholder="Minimum 6 characters" required />
+
+          <button id="authSubmitBtn" type="submit">Create Account</button>
+          <p id="authMessage" class="auth-message" role="status"></p>
+        </form>
+      </div>
+    </section>
+
+    <header class="topbar app-only" hidden>
+      <div>
+        <strong>Farm Boundary Tracker</strong>
+        <span id="accountLabel">Live web app</span>
+      </div>
+      <div class="top-actions">
+        <button id="installBtn" class="install" hidden>Install</button>
+        <button id="logoutBtn" class="secondary small">Logout</button>
+      </div>
+    </header>
+
+    <main class="shell app-only" hidden>
+      <section class="panel">
+        <div class="brand">
+          <div>
+            <p class="eyebrow">Haradanahalli, Chamarajanagar</p>
+            <h1>Farm Boundary Tracker</h1>
+          </div>
+          <span id="gpsStatus" class="pill">GPS idle</span>
+        </div>
+
+        <div class="survey-card">
+          <label for="surveySelect">Survey number</label>
+          <select id="surveySelect"></select>
+          <p id="surveyMeta" class="muted"></p>
+        </div>
+
+        <div class="controls">
+          <button id="startGpsBtn">Start Live GPS</button>
+          <button id="addPointBtn" disabled>Add Current Point</button>
+          <button id="finishBoundaryBtn" disabled>Close Boundary</button>
+          <button id="clearBoundaryBtn" class="secondary">Clear Selected Boundary</button>
+        </div>
+
+        <nav class="module-tabs" aria-label="Farm boundary modules">
+          <button class="tab is-active" data-view="capture">Capture</button>
+          <button class="tab" data-view="records">Records</button>
+          <button class="tab" data-view="reports">Reports</button>
+          <button class="tab" data-view="settings">Settings</button>
+        </nav>
+
+        <div class="stats">
+          <div>
+            <span>Captured points</span>
+            <strong id="pointCount">0</strong>
+          </div>
+          <div>
+            <span>Area</span>
+            <strong id="areaValue">Not closed</strong>
+          </div>
+          <div>
+            <span>GPS accuracy</span>
+            <strong id="accuracyValue">--</strong>
+          </div>
+        </div>
+
+        <section id="recordsView" class="module-view" hidden>
+          <h2>Survey Records</h2>
+          <div id="recordsList" class="records-list"></div>
+        </section>
+
+        <section id="reportsView" class="module-view" hidden>
+          <h2>Reports & Export</h2>
+          <p class="muted">Generate a field summary from the selected survey and captured boundary.</p>
+          <button id="copyReportBtn" class="secondary">Copy Report Summary</button>
+          <pre id="reportOutput" class="report-box"></pre>
+        </section>
+
+        <section id="settingsView" class="module-view" hidden>
+          <h2>Settings</h2>
+          <div class="setting-row">
+            <span>Storage</span>
+            <strong>Local browser storage</strong>
+          </div>
+          <div class="setting-row">
+            <span>Map</span>
+            <strong>OpenStreetMap</strong>
+          </div>
+          <div class="setting-row">
+            <span>GPS mode</span>
+            <strong>High accuracy</strong>
+          </div>
+        </section>
+
+        <details id="captureView" class="module-view">
+          <summary>Import official boundary GeoJSON</summary>
+          <p class="muted">
+            Paste a Polygon or MultiPolygon GeoJSON from an official/source map export. This
+            app will draw it and calculate approximate area.
+          </p>
+          <textarea id="geojsonInput" rows="7" spellcheck="false" placeholder='{"type":"Polygon","coordinates":[...]}'></textarea>
+          <button id="importGeojsonBtn" class="secondary">Import GeoJSON</button>
+        </details>
+
+        <div class="note">
+          This tool is for field guidance and planning. Phone GPS is not survey-grade; use RTC,
+          Tippan, Akarband or a licensed surveyor for legal boundary confirmation.
+        </div>
+      </section>
+
+      <section class="map-wrap">
+        <div id="map"></div>
+      </section>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="./app.js"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("./sw.js").catch(() => {});
+      }
+    </script>
+  </body>
+</html>
